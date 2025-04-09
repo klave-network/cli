@@ -4,6 +4,7 @@ use dialoguer::{theme::ColorfulTheme, Input, Confirm, Select};
 use console::style;
 
 use crate::util::template;
+use crate::util::git;
 
 pub fn execute(
     name: Option<String>,
@@ -28,6 +29,9 @@ Read more here: https://docs.klave.com/quickstart/create").red());
     println!("\n");
     println!("{}", style(" Klave - The honest-by-design platform ").black().on_cyan().bold());
     println!("Welcome to Klave. Let's create your honest application!");
+    
+    // Initialize tokio runtime for async operations
+    let tr = tokio::runtime::Runtime::new()?;
 
     // Determine template type
     let project_template = match &template_type {
@@ -54,7 +58,7 @@ Read more here: https://docs.klave.com/quickstart/create").red());
                 if !input.starts_with(".") {
                     return Err("Please enter a relative path.");
                 }
-                // Add more validation here
+                // TODO: Add more validation here
                 Ok(())
             })
             .interact()?
@@ -73,11 +77,15 @@ Read more here: https://docs.klave.com/quickstart/create").red());
                 if input.is_empty() {
                     return Err("Project name is required");
                 }
-                // Add more validation here
+                // TODO: Add more validation here
                 Ok(())
             })
             .interact()?
     };
+    
+    // Use git utility to get default author information
+    let default_author_name = git::find_my_name();
+    let default_author_email = git::find_github_email();
 
     // Get more project info
     let description: String = Input::with_theme(&ColorfulTheme::default())
@@ -87,22 +95,28 @@ Read more here: https://docs.klave.com/quickstart/create").red());
 
     let author_name: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("What is the name of the author?")
-        .default("Your Name".into())
+        .default(if default_author_name.is_empty() { "Your Name".into() } else { default_author_name })
         .interact()?;
 
     let author_email: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("What is the email address of the author?")
-        .default("your.email@example.com".into())
+        .default(if default_author_email.is_empty() { "your.email@example.com".into() } else { default_author_email })
         .interact()?;
 
+    // Use git utility to find GitHub profile URL
+    let default_author_url = tr.block_on(git::find_github_profile_url(&author_email));
+    
     let author_url: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("What is the URL to the author's GitHub profile?")
-        .default("https://github.com/yourusername".into())
+        .default(if default_author_url.is_empty() { "https://github.com/yourusername".into() } else { default_author_url })
         .interact()?;
+
+    // Guess repository URL based on author URL and project name
+    let default_repo_url = git::guess_repo_url(&author_url, &project_dir);
 
     let repo_url: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("What is the URL for the repository?")
-        .default("https://github.com/yourusername/my-repo".into())
+        .default(if default_repo_url.is_empty() { "https://github.com/yourusername/my-repo".into() } else { default_repo_url })
         .interact()?;
 
     // Initialize git
