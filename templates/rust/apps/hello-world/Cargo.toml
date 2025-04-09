@@ -1,5 +1,5 @@
 [package]
-name = "rust-template"
+name = "hello-world"
 version = "0.0.1"
 edition = "2021"
 
@@ -12,5 +12,5 @@ klave = "0.3.0"
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "component:rust-template"
+package = "component:hello-world"
 
