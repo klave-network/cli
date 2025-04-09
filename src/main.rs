@@ -35,6 +35,21 @@ enum Commands {
         #[clap(short, long)]
         dir: Option<String>,
     },
+    
+    /// Build Klave applications
+    Build {
+        /// Specific application to build (builds all if not specified)
+        #[clap(short, long)]
+        app: Option<String>,
+
+        /// Skip checks for required tools
+        #[clap(long)]
+        skip_checks: bool,
+
+        /// Output verbose build information
+        #[clap(short, long)]
+        verbose: bool,
+    },
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
@@ -49,6 +64,15 @@ fn run() -> Result<(), Box<dyn Error>> {
                 *no_install,
                 dir.clone(),
             )?;
+        },
+        Commands::Build { app, skip_checks, verbose } => {
+            // Create a tokio runtime for the async execute function
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::build::execute(
+                app.clone(),
+                *skip_checks,
+                *verbose,
+            ))?;
         }
     }
 
