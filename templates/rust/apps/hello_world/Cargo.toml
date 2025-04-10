@@ -1,6 +1,6 @@
 [package]
-name = "hello_world"
-version = "0.0.1"
+name = "{{KLAVE_APP_SLUG}}"
+version = "{{KLAVE_APP_VERSION}}"
 edition = "2021"
 
 [dependencies]
@@ -12,5 +12,5 @@ klave = "0.3.0"
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "component:hello_world"
+package = "component:{{KLAVE_APP_SLUG}}"
 

@@ -1,7 +1,7 @@
-package component:hello_world;
+package component:{{KLAVE_APP_SLUG}};
 
 /// An example world for the component to target.
-world hello_world {
+world {{KLAVE_APP_SLUG}} {
     export register-routes: func();
     export load-from-ledger: func(cmd: string);
     export insert-in-ledger: func(cmd: string);
