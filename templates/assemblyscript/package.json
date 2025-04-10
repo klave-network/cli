@@ -2,9 +2,7 @@
     "name": "{{KLAVE_APP_SLUG}}",
     "version": "{{KLAVE_APP_VERSION}}",
     "description": "{{KLAVE_APP_DESCRIPTION}}",
-    "repository": "{{KLAVE_APP_REPO}}",
     "license": "{{KLAVE_APP_LICENSE}}",
-    "author": "{{KLAVE_APP_AUTHOR}}",
     "scripts": {
         "build": "stac ."
     },

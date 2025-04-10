@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use include_dir::{include_dir, Dir};
+use walkdir::WalkDir;
 
 // Embed templates in the binary
 static ASSEMBLYSCRIPT_TEMPLATE: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates/assemblyscript");
@@ -12,10 +13,6 @@ pub fn create_template(
     target_dir: &Path,
     project_name: &str,
     description: &str,
-    author_name: &str,
-    author_email: &str,
-    author_url: &str,
-    repo_url: &str,
     template_type: &str,
 ) -> Result<(), Box<dyn Error>> {
     println!("Creating template files...");
@@ -31,7 +28,19 @@ pub fn create_template(
         ASSEMBLYSCRIPT_TEMPLATE.extract(temp_path)?;
     }
 
-    // Copy template files to the target directory manually
+    // Define common placeholders for all template types
+    let common_replacements = [
+        ("{{KLAVE_APP_SLUG}}", project_name),
+        ("{{KLAVE_APP_DESCRIPTION}}", description),
+        ("{{KLAVE_APP_VERSION}}", "0.0.1"),
+        ("{{KLAVE_APP_LICENSE}}", "MIT"),
+        ("{{KLAVE_SDK_CURRENT_VERSION}}", "*"),
+    ];
+
+    // Process all template files at once, replacing placeholders
+    process_template_files(temp_path, &common_replacements)?;
+
+    // Copy processed template files to target directory
     for entry in fs::read_dir(temp_path)? {
         let entry = entry?;
         let src_path = entry.path();
@@ -45,98 +54,39 @@ pub fn create_template(
         }
     }
 
-    // Update klave.json
-    update_file(
-        &target_dir.join("klave.json"),
-        &[
-            ("{{KLAVE_APP_SLUG}}", project_name),
-            ("{{KLAVE_APP_DESCRIPTION}}", description),
-            ("{{KLAVE_APP_VERSION}}", "0.0.1"),
-        ],
-    )?;
+    // Rename the app directory for both template types
+    let old_app_dir = target_dir.join("apps/hello_world");
+    let new_app_dir = target_dir.join(format!("apps/{}", project_name));
 
-    // Update package.json if it exists (AssemblyScript template)
-    let package_json_path = target_dir.join("package.json");
-    if package_json_path.exists() {
-        println!("AssemblyScript template detected");
-
-        update_file(
-            &package_json_path,
-            &[
-                ("{{KLAVE_APP_SLUG}}", project_name),
-                ("{{KLAVE_APP_DESCRIPTION}}", description),
-                ("{{KLAVE_APP_VERSION}}", "0.0.1"),
-                ("{{KLAVE_APP_AUTHOR}}", &format!("{} <{}> ({})", author_name, author_email, author_url)),
-                ("{{KLAVE_APP_LICENSE}}", "MIT"),
-                ("{{KLAVE_APP_REPO}}", repo_url),
-                ("{{KLAVE_SDK_CURRENT_VERSION}}", "*"), // Replace with latest version logic
-            ],
-        )?;
-    }
-
-    // Handle Rust-specific updates
-    if template_type == "rust" {
-        println!("Rust template detected");
-
-        // Update Cargo.toml
-        let cargo_toml_path = target_dir.join("Cargo.toml");
-        if cargo_toml_path.exists() {
-            let content = fs::read_to_string(&cargo_toml_path)?;
-            let updated_content = content.replace(
-                "members = [\"apps/hello_world\"]",
-                &format!("members = [\"apps/{}\"]", project_name),
-            );
-            fs::write(cargo_toml_path, updated_content)?;
-        }
-
-        // Update app Cargo.toml
-        let app_cargo_path = target_dir.join("apps/hello_world/Cargo.toml");
-        if app_cargo_path.exists() {
-            let content = fs::read_to_string(&app_cargo_path)?;
-            let updated_content = content
-                .replace("name = \"hello_world\"", &format!("name = \"{}\"", project_name))
-                .replace(
-                    "package = \"component:hello_world\"",
-                    &format!("package = \"component:{}\"", project_name),
-                );
-            fs::write(app_cargo_path, updated_content)?;
-        }
-
-        // Update bindings.rs
-        let bindings_path = target_dir.join("apps/hello_world/src/bindings.rs");
-        if bindings_path.exists() {
-            let content = fs::read_to_string(&bindings_path)?;
-            let updated_content = content
-                .replace(
-                    "component:hello_world/hello_world",
-                    &format!("component:{}/{}", project_name, project_name),
-                )
-                .replace("\x0brust-template", &format!("\x0b{}", project_name));
-            fs::write(bindings_path, updated_content)?;
-        }
-
-        // Rename the app directory
-        let old_app_dir = target_dir.join("apps/rust-template");
-        let new_app_dir = target_dir.join(format!("apps/{}", project_name));
-
-        if old_app_dir.exists() {
-            fs::rename(&old_app_dir, &new_app_dir)?;
-        } else {
-            return Err(format!("App directory not found: {:?}", old_app_dir).into());
-        }
+    if old_app_dir.exists() {
+        fs::rename(&old_app_dir, &new_app_dir)?;
     } else {
-        // For AssemblyScript, rename the app directory
-        let old_app_dir = target_dir.join("apps/hello_world");
-        let new_app_dir = target_dir.join(format!("apps/{}", project_name));
-
-        if old_app_dir.exists() {
-            fs::rename(&old_app_dir, &new_app_dir)?;
-        } else {
-            return Err(format!("App directory not found: {:?}", old_app_dir).into());
-        }
+        return Err(format!("App directory not found: {:?}", old_app_dir).into());
     }
 
     println!("Template files created successfully");
+    Ok(())
+}
+
+// Process all template files and replace placeholders
+fn process_template_files(dir_path: &Path, replacements: &[(&str, &str)]) -> Result<(), Box<dyn Error>> {
+    for entry in WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        
+        // Skip directories
+        if path.is_dir() {
+            continue;
+        }
+        
+        // Only process text files that might contain placeholders
+        // Add more extensions if needed
+        let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if ["json", "toml", "rs", "ts", "wit"]
+            .contains(&extension) {
+            update_file(path, replacements)?;
+        }
+    }
+    
     Ok(())
 }
 
@@ -160,31 +110,26 @@ fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), Box<dyn Error>> {
 }
 
 fn update_file(file_path: &Path, replacements: &[(&str, &str)]) -> Result<(), Box<dyn Error>> {
+    // Skip if the file doesn't exist
     if !file_path.exists() {
-        return Err(format!("File not found: {:?}", file_path).into());
+        return Ok(());
     }
 
     let mut content = String::new();
-    match File::open(file_path) {
-        Ok(mut file) => {
-            file.read_to_string(&mut content)?;
-        }
-        Err(e) => {
-            return Err(format!("Failed to open file {:?}: {}", file_path, e).into());
-        }
-    }
+    File::open(file_path)?.read_to_string(&mut content)?;
 
+    let mut modified = false;
     for (pattern, replacement) in replacements {
-        content = content.replace(pattern, replacement);
+        if content.contains(pattern) {
+            content = content.replace(pattern, replacement);
+            modified = true;
+        }
     }
 
-    match File::create(file_path) {
-        Ok(mut file) => {
-            file.write_all(content.as_bytes())?;
-        }
-        Err(e) => {
-            return Err(format!("Failed to write file {:?}: {}", file_path, e).into());
-        }
+    // Only write back if content was modified
+    if modified {
+        let mut file = File::create(file_path)?;
+        file.write_all(content.as_bytes())?;
     }
 
     Ok(())
