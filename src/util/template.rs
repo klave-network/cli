@@ -83,32 +83,32 @@ pub fn create_template(
         if cargo_toml_path.exists() {
             let content = fs::read_to_string(&cargo_toml_path)?;
             let updated_content = content.replace(
-                "members = [\"apps/rust-template\"]",
+                "members = [\"apps/hello_world\"]",
                 &format!("members = [\"apps/{}\"]", project_name),
             );
             fs::write(cargo_toml_path, updated_content)?;
         }
 
         // Update app Cargo.toml
-        let app_cargo_path = target_dir.join("apps/rust-template/Cargo.toml");
+        let app_cargo_path = target_dir.join("apps/hello_world/Cargo.toml");
         if app_cargo_path.exists() {
             let content = fs::read_to_string(&app_cargo_path)?;
             let updated_content = content
-                .replace("name = \"rust-template\"", &format!("name = \"{}\"", project_name))
+                .replace("name = \"hello_world\"", &format!("name = \"{}\"", project_name))
                 .replace(
-                    "package = \"component:rust-template\"",
+                    "package = \"component:hello_world\"",
                     &format!("package = \"component:{}\"", project_name),
                 );
             fs::write(app_cargo_path, updated_content)?;
         }
 
         // Update bindings.rs
-        let bindings_path = target_dir.join("apps/rust-template/src/bindings.rs");
+        let bindings_path = target_dir.join("apps/hello_world/src/bindings.rs");
         if bindings_path.exists() {
             let content = fs::read_to_string(&bindings_path)?;
             let updated_content = content
                 .replace(
-                    "component:rust-template/rust-template",
+                    "component:hello_world/hello_world",
                     &format!("component:{}/{}", project_name, project_name),
                 )
                 .replace("\x0brust-template", &format!("\x0b{}", project_name));
