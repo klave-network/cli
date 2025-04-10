@@ -90,13 +90,13 @@ macro_rules! __export_rust_template_impl {
 #[doc(inline)]
 pub(crate) use __export_rust_template_impl as export;
 #[cfg(target_arch = "wasm32")]
-#[link_section = "component-type:wit-bindgen:0.36.0:component:rust-template:rust-template:encoded world"]
+#[link_section = "component-type:wit-bindgen:0.36.0:component:hello_world:hello_world:encoded world"]
 #[doc(hidden)]
 pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 256] = *b"\
 \0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07}\x01A\x02\x01A\x05\x01\
 @\0\x01\0\x04\0\x0fregister-routes\x01\0\x01@\x01\x03cmds\x01\0\x04\0\x10load-fr\
 om-ledger\x01\x01\x04\0\x10insert-in-ledger\x01\x01\x04\0%component:rust-templat\
-e/rust-template\x04\0\x0b\x13\x01\0\x0drust-template\x03\0\0\0G\x09producers\x01\
+e/hello_world\x04\0\x0b\x13\x01\0\x0dhello_world\x03\0\0\0G\x09producers\x01\
 \x0cprocessed-by\x02\x0dwit-component\x070.220.1\x10wit-bindgen-rust\x060.36.0";
 #[inline(never)]
 #[doc(hidden)]

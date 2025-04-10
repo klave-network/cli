@@ -5,10 +5,10 @@
   ],
   "applications": [
     {
-      "name": "hello-world",
+      "name": "hello_world",
       "description": "A Rust component template for Klave",
       "version": "0.1.0",
-      "rootDir": "/apps/hello-world"
+      "rootDir": "/apps/hello_world"
     }
   ]
 }
