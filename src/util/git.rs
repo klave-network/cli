@@ -1,7 +1,7 @@
 use std::process::Command;
 use std::path::Path;
 use std::env;
-use reqwest;
+use ureq;
 use indicatif::{ProgressBar, ProgressStyle};
 
 /// Finds user's name by reading it from the git config.
@@ -34,26 +34,23 @@ pub async fn find_github_profile_url(email: &str) -> String {
         return String::new();
     }
 
-    match reqwest::Client::new()
-        .get(&format!("https://api.github.com/search/users?q={}+in:email", email))
-        .header("User-Agent", "Rust GitHub Username Finder")
-        .send()
-        .await
-    {
-        Ok(response) => {
-            if let Ok(json) = response.json::<serde_json::Value>().await {
-                if let Some(items) = json.get("items").and_then(|i| i.as_array()) {
-                    if let Some(first_item) = items.first() {
-                        if let Some(username) = first_item.get("login").and_then(|l| l.as_str()) {
-                            return format!("https://github.com/{}", username);
+    match ureq::get(&format!("https://api.github.com/search/users?q={}+in:email", email))
+        .set("User-Agent", "Rust GitHub Username Finder")
+        .call() {
+            Ok(response) => {
+                if let Ok(json) = response.into_json::<serde_json::Value>() {
+                    if let Some(items) = json.get("items").and_then(|i| i.as_array()) {
+                        if let Some(first_item) = items.first() {
+                            if let Some(username) = first_item.get("login").and_then(|l| l.as_str()) {
+                                return format!("https://github.com/{}", username);
+                            }
                         }
                     }
                 }
+                String::new()
             }
-            String::new()
+            Err(_) => String::new(),
         }
-        Err(_) => String::new(),
-    }
 }
 
 /// Guesses the repository URL based on the author profile URL and the package slug.

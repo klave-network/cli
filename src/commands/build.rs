@@ -10,8 +10,6 @@ use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 const KLAVE_CYAN_BG: &str = "Klave - The honest-by-design platform";
-const DISCORD_URL: &str = "https://discord.gg/klave";
-const DOCS_URL: &str = "https://docs.klave.com";
 
 struct BuildResult {
     app: String,
