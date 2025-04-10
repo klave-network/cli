@@ -39,7 +39,7 @@ async fn is_command_available(command: &str) -> bool {
 /// Resolve the package manager being used in the project
 fn resolve_package_manager() -> String {
     let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    
+
     if Path::new(&cwd).join("yarn.lock").exists() {
         return "yarn".to_string();
     } else if Path::new(&cwd).join("pnpm-lock.yaml").exists() {
@@ -48,6 +48,45 @@ fn resolve_package_manager() -> String {
         return "npm".to_string();
     } else {
         return "npm".to_string(); // Default to npm
+    }
+}
+
+/// Check if dependencies are installed for the project
+fn are_dependencies_installed(cwd: &Path) -> bool {
+    // Basic check for node_modules directory existence
+    let node_modules = cwd.join("node_modules");
+    if !node_modules.exists() {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+/// Install dependencies using the detected package manager
+fn install_dependencies(cwd: &Path, package_manager: &str) -> Result<bool> {
+    println!("Installing dependencies...");
+    
+    let (cmd, args) = match package_manager {
+        "npm" => ("npm", vec!["install", "--legacy-peer-deps"]),
+        "yarn" => ("yarn", vec!["install"]),
+        "pnpm" => ("pnpm", vec!["install"]),
+        _ => ("npm", vec!["install", "--legacy-peer-deps"]),
+    };
+    
+    println!("Running: {} {}", cmd, args.join(" "));
+    
+    let status = std::process::Command::new(cmd)
+        .args(&args)
+        .current_dir(cwd)
+        .status()
+        .context(format!("Failed to run {} install", package_manager))?;
+    
+    if status.success() {
+        println!("{}", "Dependencies installed successfully.".green());
+        Ok(true)
+    } else {
+        println!("{}", "Failed to install dependencies.".red());
+        Ok(false)
     }
 }
 
@@ -60,10 +99,10 @@ async fn run_command(
 ) -> Result<Output> {
     let mut cmd = Command::new(command);
     cmd.args(args).current_dir(cwd);
-    
+
     if inherit_stdio {
         cmd.stdout(std::process::Stdio::inherit())
-           .stderr(std::process::Stdio::inherit());
+            .stderr(std::process::Stdio::inherit());
     }
     
     cmd.output().context(format!("Failed to execute command: {} {:?}", command, args))
@@ -77,7 +116,7 @@ pub async fn execute(
 ) -> Result<()> {
     // Get current working directory
     let cwd = env::current_dir().context("Failed to get current directory")?;
-    
+
     // Check if klave.json exists
     let klave_config_path = cwd.join("klave.json");
     if !klave_config_path.exists() {
@@ -102,10 +141,10 @@ pub async fn execute(
             .iter()
             .filter(|a| {
                 a.get("slug").and_then(|s| s.as_str()) == Some(app_name)
-                    || a.get("name").and_then(|s| s.as_str()) == Some(app_name)
+                || a.get("name").and_then(|s| s.as_str()) == Some(app_name)
             })
             .collect::<Vec<_>>();
-            
+    
         if filtered.is_empty() {
             // List available apps if the specified app wasn't found
             let available_apps: Vec<String> = applications
@@ -113,7 +152,7 @@ pub async fn execute(
                 .filter_map(|a| a.get("slug").and_then(|s| s.as_str()).or_else(|| a.get("name").and_then(|s| s.as_str())))
                 .map(|s| s.to_string())
                 .collect();
-                
+        
             return Err(anyhow!(
                 "Error: No application found with name \"{}\". Available applications: {}", 
                 app_name, 
@@ -162,7 +201,7 @@ pub async fn execute(
         } else {
             false
         };
-        
+    
         // Build will need these tools
         let mut missing_tools = Vec::new();
         
@@ -207,7 +246,7 @@ pub async fn execute(
             spinner.finish_with_message("Project analysis complete");
             eprintln!("{}", "Warning: Missing required tools".yellow());
             eprintln!("The following tools are required but not found:");
-            
+        
             for tool in missing_tools {
                 eprintln!("  - {}", tool);
             }
@@ -237,6 +276,55 @@ pub async fn execute(
         String::new()
     };
     
+    // Check if dependencies are installed for AssemblyScript projects
+    let needs_dependencies = has_package_json && 
+        apps_to_process.iter().any(|app| {
+            let root_dir = app.get("rootDir").and_then(|s| s.as_str()).unwrap_or(".");
+            let app_dir = if root_dir.starts_with('/') {
+                cwd.join(&root_dir[1..])
+            } else {
+                cwd.join(root_dir)
+            };
+            app_dir.join("tsconfig.json").exists()
+        });
+
+    if needs_dependencies && !are_dependencies_installed(&cwd) {
+        spinner.finish_with_message("Project analysis complete");
+        
+        println!("{}", "Dependencies not installed".yellow());
+        println!("You need to install dependencies for your AssemblyScript project before building.");
+        
+        // Auto-install or prompt based on skip_checks
+        if skip_checks {
+            println!("Automatically installing dependencies due to --skip-checks...");
+            if !install_dependencies(&cwd, &package_manager)? {
+                return Err(anyhow!("Build aborted: failed to install dependencies"));
+            }
+        } else {
+            if Confirm::with_theme(&ColorfulTheme::default())
+                .with_prompt("Would you like to install dependencies now?")
+                .default(true)
+                .interact()?
+            {
+                if !install_dependencies(&cwd, &package_manager)? {
+                    return Err(anyhow!("Build aborted: failed to install dependencies"));
+                }
+            } else {
+                // User chose not to install dependencies
+                if !Confirm::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Continue without installing dependencies? (build will likely fail)")
+                    .default(false)
+                    .interact()?
+                {
+                    return Err(anyhow!("Build aborted: dependencies not installed"));
+                }
+            }
+        }
+        
+        // Reset spinner after dependency installation
+        spinner.set_message("Continuing build process...");
+    }
+    
     if verbose {
         spinner.finish_with_message(format!("Project analysis complete: found {} apps", apps_to_process.len()));
     } else {
@@ -252,7 +340,7 @@ pub async fn execute(
             .and_then(|s| s.as_str())
             .or_else(|| application.get("name").and_then(|s| s.as_str()))
             .unwrap_or("unknown");
-        
+    
         let root_dir = application.get("rootDir")
             .and_then(|s| s.as_str())
             .unwrap_or(".");
@@ -328,14 +416,14 @@ pub async fn execute(
                         "pnpm" => ("pnpm", vec!["build", "--app", app_slug]),
                         _ => ("npm", vec!["run", "build"]),
                     };
-                    
+                
                     run_command(build_command, &build_args, &cwd, true).await
                         .map(|_| ())
                 }
             },
             _ => Err(anyhow!("Unknown app type")),
         };
-        
+                    
         let elapsed = start_time.elapsed();
         
         match build_result {
@@ -350,7 +438,7 @@ pub async fn execute(
                     .green()
                     .to_string(),
                 );
-                
+        
                 build_results.push(BuildResult {
                     app: app_slug.to_string(),
                     success: true,
@@ -361,8 +449,8 @@ pub async fn execute(
             Err(error) => {
                 spinner.finish_with_message(
                     format!("Failed to build {} app \"{}\"", app_type, app_slug)
-                        .red()
-                        .to_string(),
+                    .red()
+                    .to_string(),
                 );
                 
                 eprintln!("{}", format!("Error building \"{}\": {}", app_slug, error).red());
@@ -382,9 +470,14 @@ pub async fn execute(
                         println!("\nTo add the WebAssembly target:\n");
                         println!("    - Run in your terminal: rustup target add wasm32-unknown-unknown");
                     }
-                } else if app_type == "assemblyscript" && !has_node {
-                    println!("\nTo install Node.js:\n");
-                    println!("    - Visit the Node.js homepage: https://nodejs.org/en/download/");
+                } else if app_type == "assemblyscript" {
+                    if !has_node {
+                        println!("\nTo install Node.js:\n");
+                        println!("    - Visit the Node.js homepage: https://nodejs.org/en/download/");
+                    } else if error.to_string().contains("Cannot find module") {
+                        println!("\nMissing dependencies detected. Try:\n");
+                        println!("    - {} install", package_manager);
+                    }
                 }
                 
                 build_results.push(BuildResult {
@@ -396,7 +489,7 @@ pub async fn execute(
             }
         }
     }
-    
+                
     // Show summary
     let total = build_results.len();
     let successful = build_results.iter().filter(|r| r.success).count();
@@ -436,7 +529,7 @@ pub async fn execute(
         } else {
             "✗ Failed".red()
         };
-        
+    
         let time = if result.success {
             format!("({:.2}s)", result.time.as_secs_f64()).dimmed()
         } else {
@@ -451,7 +544,7 @@ pub async fn execute(
             time
         );
     }
-    
+        
     // Exit with error code if any builds failed
     if successful < total {
         std::process::exit(1);
