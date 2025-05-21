@@ -101,7 +101,7 @@ jobs:
 
             - name: Upload release asset
               env:
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   GH_REPO: ${{ github.repository }}
               shell: bash
               run: |
@@ -115,6 +115,6 @@ jobs:
         steps:
             - name: Publish GitHub release
               env:
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   GH_REPO: ${{ github.repository }}
               run: gh release edit "${{ needs.create-release.outputs.klave_version }}" --draft=false
