@@ -16,6 +16,8 @@ jobs:
     create-release:
         name: Create Draft Release
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
         outputs:
             klave_version: ${{ env.CLI_VERSION }}
 
