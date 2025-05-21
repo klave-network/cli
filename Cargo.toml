@@ -10,7 +10,7 @@ readme = "README.md"
 rust-version = "1.86.0"
 
 [[bin]]
-name = "railway"
+name = "klave"
 path = "src/main.rs"
 
 [dependencies]
