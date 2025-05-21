@@ -1,0 +1,112 @@
+name: Release
+
+on:
+    push:
+        branches:
+            - main
+        tags:
+            - "v*.*.*"
+    workflow_dispatch:
+
+env:
+    MACOSX_DEPLOYMENT_TARGET: 10.7
+    RUST_VERSION: 1.86.0
+
+jobs:
+    create-release:
+        name: Create Draft Release
+        runs-on: ubuntu-latest
+        outputs:
+            klave_version: ${{ env.CLI_VERSION }}
+
+        steps:
+            - name: Extract version from tag
+              shell: bash
+              if: env.CLI_VERSION == ''
+              run: |
+                  echo "CLI_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+                  echo "Version set to $CLI_VERSION"
+
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Build changelog
+              id: build_changelog
+              uses: mikepenz/release-changelog-builder-action@v5
+              with:
+                  configuration: ".github/changelog-config.json"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Create draft GitHub release
+              id: create_release
+              uses: softprops/action-gh-release@v2
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  tag_name: ${{ env.CLI_VERSION }}
+                  draft: true
+                  prerelease: false
+                  body: ${{ steps.build_changelog.outputs.changelog }}
+
+    build-release:
+        name: Build Release Assets
+        needs: create-release
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                include:
+                    - target: x86_64-unknown-linux-gnu
+                      os: ubuntu-latest
+
+                    - target: x86_64-apple-darwin
+                      os: macos-latest
+
+                    - target: x86_64-pc-windows-msvc
+                      os: windows-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 1
+
+            - name: Install Rust and target
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: ${{ matrix.target }}
+
+            - name: Build release binary
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --release --locked --target ${{ matrix.target }}
+
+            - name: Prepare binaries
+              run: |
+                  cd target/${{ matrix.target }}/release
+                  if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+                    strip klave.exe || true
+                    7z a ../../../klave-${{ needs.create-release.outputs.klave_version }}-${{ matrix.target }}.zip klave.exe
+                  else
+                    strip klave || true
+                    tar czvf ../../../klave-${{ needs.create-release.outputs.klave_version }}-${{ matrix.target }}.tar.gz klave
+                  fi
+                  cd -
+
+            - name: Upload release asset
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release upload "${{ needs.create-release.outputs.klave_version }}" klave-${{ needs.create-release.outputs.klave_version }}-${{ matrix.target }}*
+
+    publish-release:
+        name: Publish Release
+        needs: [create-release, build-release]
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Publish GitHub release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: gh release edit "${{ needs.create-release.outputs.klave_version }}" --draft=false
