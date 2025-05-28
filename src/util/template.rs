@@ -1,8 +1,8 @@
-use std::path::Path;
+use include_dir::{Dir, include_dir};
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use include_dir::{include_dir, Dir};
+use std::path::Path;
 use walkdir::WalkDir;
 
 // Embed templates in the binary
@@ -69,24 +69,26 @@ pub fn create_template(
 }
 
 // Process all template files and replace placeholders
-fn process_template_files(dir_path: &Path, replacements: &[(&str, &str)]) -> Result<(), Box<dyn Error>> {
+fn process_template_files(
+    dir_path: &Path,
+    replacements: &[(&str, &str)],
+) -> Result<(), Box<dyn Error>> {
     for entry in WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        
+
         // Skip directories
         if path.is_dir() {
             continue;
         }
-        
+
         // Only process text files that might contain placeholders
         // Add more extensions if needed
         let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        if ["json", "toml", "rs", "ts", "wit"]
-            .contains(&extension) {
+        if ["json", "toml", "rs", "ts", "wit"].contains(&extension) {
             update_file(path, replacements)?;
         }
     }
-    
+
     Ok(())
 }
 

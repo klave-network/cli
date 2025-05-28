@@ -35,7 +35,7 @@ enum Commands {
         #[clap(short, long)]
         dir: Option<String>,
     },
-    
+
     /// Build Klave applications
     Build {
         /// Specific application to build (builds all if not specified)
@@ -56,7 +56,13 @@ fn run() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Create { name, template, no_git, no_install, dir } => {
+        Commands::Create {
+            name,
+            template,
+            no_git,
+            no_install,
+            dir,
+        } => {
             commands::create::execute(
                 name.clone(),
                 template.clone(),
@@ -64,8 +70,12 @@ fn run() -> Result<(), Box<dyn Error>> {
                 *no_install,
                 dir.clone(),
             )?;
-        },
-        Commands::Build { app, skip_checks, verbose } => {
+        }
+        Commands::Build {
+            app,
+            skip_checks,
+            verbose,
+        } => {
             // Create a tokio runtime for the async execute function
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(commands::build::execute(

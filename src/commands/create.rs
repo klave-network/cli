@@ -1,8 +1,8 @@
-use std::error::Error;
 use colored::Colorize;
-use std::path::PathBuf;
-use dialoguer::{theme::ColorfulTheme, Input, Confirm, Select};
 use console::style;
+use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
+use std::error::Error;
+use std::path::PathBuf;
 
 use crate::util::template;
 
@@ -27,9 +27,15 @@ Read more here: https://docs.klave.com/quickstart/create").red());
     }
 
     println!("\n");
-    println!("{}", style(" Klave - The honest-by-design platform ").black().on_cyan().bold());
+    println!(
+        "{}",
+        style(" Klave - The honest-by-design platform ")
+            .black()
+            .on_cyan()
+            .bold()
+    );
     println!("Welcome to Klave. Let's create your honest application!");
-    
+
     // Determine template type
     let project_template = match &template_type {
         None => {
@@ -40,10 +46,10 @@ Read more here: https://docs.klave.com/quickstart/create").red());
                 .default(0)
                 .interact()?;
             options[selection].to_string()
-        },
-        Some(template) => template.clone()
+        }
+        Some(template) => template.clone(),
     };
-    
+
     // Get project directory
     let project_dir = if let Some(d) = dir {
         d
@@ -62,7 +68,7 @@ Read more here: https://docs.klave.com/quickstart/create").red());
     } else {
         format!("./{}", name.as_ref().unwrap())
     };
-    
+
     // Get project name
     let project_name = if let Some(n) = name {
         n
@@ -79,13 +85,13 @@ Read more here: https://docs.klave.com/quickstart/create").red());
             })
             .interact()?
     };
-    
+
     // Get more project info
     let description: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("How would you describe your honest application?")
         .default("This is an honest application for the Klave Network".into())
         .interact()?;
-    
+
     // Initialize git
     let init_git = if no_git {
         false
@@ -95,7 +101,7 @@ Read more here: https://docs.klave.com/quickstart/create").red());
             .default(true)
             .interact()?
     };
-    
+
     // Install dependencies (AssemblyScript only)
     let install_deps = if no_install || project_template != "assemblyscript" {
         false
@@ -105,19 +111,14 @@ Read more here: https://docs.klave.com/quickstart/create").red());
             .default(true)
             .interact()?
     };
-    
+
     // Create the target directory
     let target_dir = PathBuf::from(&project_dir);
     std::fs::create_dir_all(&target_dir)?;
-    
+
     // Create the project template
-    template::create_template(
-        &target_dir,
-        &project_name,
-        &description,
-        &project_template,
-    )?;
-    
+    template::create_template(&target_dir, &project_name, &description, &project_template)?;
+
     // Initialize git repository if requested
     if init_git {
         println!("Initializing git repository...");
@@ -126,20 +127,20 @@ Read more here: https://docs.klave.com/quickstart/create").red());
             .arg("init")
             .current_dir(&target_dir)
             .status()?;
-    
+
         if !status.success() {
             eprintln!("Warning: Failed to initialize git repository");
         } else {
             println!("{}", "Git repository initialized successfully".green());
         }
     }
-        
+
     // Install dependencies if requested
     if install_deps {
         println!("Installing dependencies...");
         // Determine package manager and install
         let package_manager = "npm"; // Simplified for this example
-    
+
         // Use proper command arguments for each package manager
         let (cmd, args) = match package_manager {
             "npm" => ("npm", vec!["install", "--legacy-peer-deps"]),
@@ -147,28 +148,33 @@ Read more here: https://docs.klave.com/quickstart/create").red());
             "pnpm" => ("pnpm", vec!["install"]),
             _ => ("npm", vec!["install", "--legacy-peer-deps"]),
         };
-        
+
         println!("Running: {} {}", cmd, args.join(" "));
-        
+
         let status = std::process::Command::new(cmd)
             .args(&args)
             .current_dir(&target_dir)
             .status()?;
-        
+
         if !status.success() {
             eprintln!("{}", "Warning: Failed to install dependencies".yellow());
-            eprintln!("You can try installing them later with 'npm install' or during the build process");
+            eprintln!(
+                "You can try installing them later with 'npm install' or during the build process"
+            );
         } else {
             println!("{}", "Dependencies installed successfully".green());
         }
     } else if project_template == "assemblyscript" {
         println!("\n{}", "Note: Dependencies not installed".yellow());
-        println!("You chose to skip dependency installation. Dependencies will be installed automatically when you run 'klave build'.");
+        println!(
+            "You chose to skip dependency installation. Dependencies will be installed automatically when you run 'klave build'."
+        );
     }
-        
+
     // Display next steps
     if project_template == "rust" {
-        println!("
+        println!(
+            "
     Build your Rust application:
     
     - Enter your project directory using cd {}
@@ -180,10 +186,13 @@ Read more here: https://docs.klave.com/quickstart/create").red());
 Documentation
 
     - Learn more about Klave here: https://docs.klave.com
-    ", project_dir);
+    ",
+            project_dir
+        );
     } else {
         // AssemblyScript instructions
-        println!("
+        println!(
+            "
         Build your AssemblyScript application:
         
     - Enter your project directory using cd {}
@@ -193,10 +202,12 @@ Documentation
 Documentation
 
     - Learn more about Klave here: https://docs.klave.com
-    ", project_dir);
+    ",
+            project_dir
+        );
     }
-    
+
     println!("Stuck? Reach out to us on Discord: https://discord.gg/klave");
-    
+
     Ok(())
 }
